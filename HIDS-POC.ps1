@@ -8,6 +8,73 @@
   - pas d'auto-rebaseline
 #>
 
+
+
+# ---------- SETUP ----------
+param([switch]$Setup)
+
+if ($Setup) {
+  # Relance en STA pour les boîtes de dialogue Windows.Forms
+  if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
+    Start-Process powershell -ArgumentList "-STA -File `"$PSCommandPath`" -Setup" -Verb RunAs
+    exit
+  }
+
+  Add-Type -AssemblyName System.Windows.Forms
+  [System.Windows.Forms.Application]::EnableVisualStyles() | Out-Null
+
+  $cfgPath = Join-Path $PSScriptRoot "config.json"
+  if (-not (Test-Path $cfgPath)) {
+    [System.Windows.Forms.MessageBox]::Show("config.json introuvable : $cfgPath","HIDS Setup",
+      [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    exit 1
+  }
+  $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+
+  $picked = @()
+
+  # 1) Dossiers (tu peux cliquer plusieurs fois ; Annuler pour passer aux fichiers)
+  do {
+    $fb = New-Object System.Windows.Forms.FolderBrowserDialog
+    $fb.Description = "Choisis un dossier à SURVEILLER (Annuler pour passer aux fichiers)"
+    if ($fb.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+      $picked += $fb.SelectedPath
+    } else { break }
+  } while ($true)
+
+  # 2) Fichiers (multi-sélection)
+  $of = New-Object System.Windows.Forms.OpenFileDialog
+  $of.Title = "Choisis des fichiers à SURVEILLER (multisélection)"
+  $of.Multiselect = $true
+  $of.Filter = "Tous (*.*)|*.*"
+  if ($of.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+    $picked += $of.FileNames
+  }
+
+  # Normaliser, filtrer, dédupliquer
+  $picked = $picked |
+    Where-Object { $_ -and (Test-Path $_) } |
+    ForEach-Object { $_ -replace '\\','/' } |
+    Select-Object -Unique
+
+  if (-not $picked -or $picked.Count -eq 0) {
+    [System.Windows.Forms.MessageBox]::Show("Aucun chemin sélectionné. Aucune modification apportée.","HIDS Setup",
+      [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+    exit 0
+  }
+
+  # >>> MODE REMPLACEMENT : on écrase complètement la liste Paths <<<
+  $cfg.Paths = $picked
+  $cfg | ConvertTo-Json -Depth 10 | Out-File $cfgPath -Encoding UTF8
+
+  $preview = ($picked | ForEach-Object { " - $_" }) -join "`r`n"
+  [System.Windows.Forms.MessageBox]::Show("config.json MIS À JOUR (liste REMPLACÉE).`r`nChemins surveillés :`r`n$preview","HIDS Setup",
+    [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+  exit 0
+}
+
+
+
 # ---------- UTILITAIRES ----------
 function Read-Config {
     param([string]$Path = ".\config.json")

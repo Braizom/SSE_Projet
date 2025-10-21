@@ -1,0 +1,15 @@
+{
+  "Paths": ["C:/Users/exari/Desktop/hids_test"],
+  "Smtp": {
+    "Server": "smtp.gmail.com",
+    "Port": 587,
+    "UseTls": true,
+    "From": "teddy.pellerin1285@gmail.com",
+    "To": "teddy.pellerin1285@gmail.com",
+    "Username": "teddy.pellerin1285@gmail.com",
+    "Password": ""
+  },
+  "DebounceSeconds": 2,
+  "BaselineFile": "C:/ProgramData/HIDS/baseline.json",
+  "EventLogFile": "C:/ProgramData/HIDS/events.log"
+}

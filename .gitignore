@@ -1,3 +1,8 @@
 /.idea
-test.html
-test.ps1
+
+*.html
+*.iml
+*.ps1
+
+!HIDS-POC.ps1
+!SSE_Int.ps1

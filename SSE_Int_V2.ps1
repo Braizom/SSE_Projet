@@ -175,7 +175,7 @@ Function AddFolderPath(){
 }
 
 Function MakeJSON(){
-    $password = (ConvertTo-SecureString -AsPlainText -Force $TextBox2 | ConvertFrom-SecureString)
+    $password = (ConvertTo-SecureString -AsPlainText -Force $TextBox2.Text | ConvertFrom-SecureString)
     New-Object Config $TextBox1.Text, $password, $FolderPathList, $FilePathList | ConvertTo-Json | Out-File -FilePath .\CONFIG_NEW.json
     $Form.close()
 }

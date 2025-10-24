@@ -9,72 +9,6 @@
 #>
 
 
-
-# ---------- SETUP ----------
-param([switch]$Setup)
-
-if ($Setup) {
-  # Relance en STA pour les boîtes de dialogue Windows.Forms
-  if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
-    Start-Process powershell -ArgumentList "-STA -File `"$PSCommandPath`" -Setup" -Verb RunAs
-    exit
-  }
-
-  Add-Type -AssemblyName System.Windows.Forms
-  [System.Windows.Forms.Application]::EnableVisualStyles() | Out-Null
-
-  $cfgPath = Join-Path $PSScriptRoot "config.json"
-  if (-not (Test-Path $cfgPath)) {
-    [System.Windows.Forms.MessageBox]::Show("config.json introuvable : $cfgPath","HIDS Setup",
-      [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
-    exit 1
-  }
-  $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
-
-  $picked = @()
-
-  # 1) Dossiers (tu peux cliquer plusieurs fois ; Annuler pour passer aux fichiers)
-  do {
-    $fb = New-Object System.Windows.Forms.FolderBrowserDialog
-    $fb.Description = "Choisis un dossier à SURVEILLER (Annuler pour passer aux fichiers)"
-    if ($fb.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-      $picked += $fb.SelectedPath
-    } else { break }
-  } while ($true)
-
-  # 2) Fichiers (multi-sélection)
-  $of = New-Object System.Windows.Forms.OpenFileDialog
-  $of.Title = "Choisis des fichiers à SURVEILLER (multisélection)"
-  $of.Multiselect = $true
-  $of.Filter = "Tous (*.*)|*.*"
-  if ($of.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-    $picked += $of.FileNames
-  }
-
-  # Normaliser, filtrer, dédupliquer
-  $picked = $picked |
-    Where-Object { $_ -and (Test-Path $_) } |
-    ForEach-Object { $_ -replace '\\','/' } |
-    Select-Object -Unique
-
-  if (-not $picked -or $picked.Count -eq 0) {
-    [System.Windows.Forms.MessageBox]::Show("Aucun chemin sélectionné. Aucune modification apportée.","HIDS Setup",
-      [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
-    exit 0
-  }
-
-  # >>> MODE REMPLACEMENT : on écrase complètement la liste Paths <<<
-  $cfg.Paths = $picked
-  $cfg | ConvertTo-Json -Depth 10 | Out-File $cfgPath -Encoding UTF8
-
-  $preview = ($picked | ForEach-Object { " - $_" }) -join "`r`n"
-  [System.Windows.Forms.MessageBox]::Show("config.json MIS À JOUR (liste REMPLACÉE).`r`nChemins surveillés :`r`n$preview","HIDS Setup",
-    [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
-  exit 0
-}
-
-
-
 # ---------- UTILITAIRES ----------
 function Read-Config {
     param([string]$Path = ".\config.json")
@@ -170,7 +104,8 @@ function Send-Email {
         $smtp.EnableSsl = $UseTls
         $smtp.UseDefaultCredentials = $false
         if ($User -and $Password) {
-            $smtp.Credentials = New-Object System.Net.NetworkCredential($User,$Password)
+            $SecurePassword = ConvertTo-SecureString $Password
+            $smtp.Credentials = New-Object System.Net.NetworkCredential($User,$SecurePassword)
         } else { throw "Identifiants SMTP manquants." }
         try { $smtp.TargetName = 'STARTTLS/smtp.gmail.com' } catch {}
         $smtp.Send($mail)
@@ -193,7 +128,7 @@ $DebounceSeconds     = [int]($Config.DebounceSeconds | ForEach-Object { if ($_ -
 Get-EventSubscriber | Where-Object { $_.SourceIdentifier -like 'HIDS*' } | Unregister-Event -Force -ErrorAction SilentlyContinue
 Ensure-Directory (Split-Path $script:EventLogFile -Parent)
 Ensure-Directory (Split-Path $BaselineFile -Parent)
-Log-Event -Message "HIDS démarré (heartbeat)" -EventFile $script:EventLogFile
+Log-Event -Message "HIDS demarre" -EventFile $script:EventLogFile
 
 # ---------- BASELINE ----------
 $Baseline = Load-Baseline -Path $BaselineFile
@@ -204,7 +139,7 @@ foreach ($p in $Paths) {
         if (Test-Path $p -PathType Leaf) {
             $h = Compute-Hash -FilePath $p
             $Baseline[$p] = @{ Type="File"; Hash=$h; LastSeen=(Get-Date).ToString("s") }
-            Log-Event -Message "Baseline ajoutée (fichier) : $p -> $h" -EventFile $script:EventLogFile
+            Log-Event -Message "Baseline ajoutee (fichier) : $p -> $h" -EventFile $script:EventLogFile
         } elseif (Test-Path $p -PathType Container) {
             $Baseline[$p] = @{ Type="Directory"; Files=@{} }
             $files = Get-ChildItem -Path $p -File -Recurse -ErrorAction SilentlyContinue
@@ -212,7 +147,7 @@ foreach ($p in $Paths) {
                 $hf = Compute-Hash -FilePath $f.FullName
                 $Baseline[$p].Files[$f.FullName] = @{ Hash=$hf; LastSeen=(Get-Date).ToString("s") }
             }
-            Log-Event -Message "Baseline ajoutée (dossier) : $p -> $($Baseline[$p].Files.Count) fichiers" -EventFile $script:EventLogFile
+            Log-Event -Message "Baseline ajoutee (dossier) : $p -> $($Baseline[$p].Files.Count) fichiers" -EventFile $script:EventLogFile
         } else {
             Log-Event -Message "Chemin introuvable pour baseline : $p" -EventFile $script:EventLogFile
         }
@@ -232,12 +167,12 @@ $Notify = [System.IO.NotifyFilters]"FileName, DirectoryName, LastWrite, Size, Cr
 
 for ($i=0; $i -lt $Paths.Count; $i++) {
     $p = $Paths[$i]
-    if (-not (Test-Path $p)) { Log-Event -Message "Chemin introuvable, watcher non créé: $p" -EventFile $script:EventLogFile; continue }
+    if (-not (Test-Path $p)) { Log-Event -Message "Chemin introuvable, watcher non cree: $p" -EventFile $script:EventLogFile; continue }
 
     $fsw = New-Object System.IO.FileSystemWatcher
     if ((Get-Item $p).PSIsContainer) {
         $fsw.Path = $p
-        $fsw.Filter = "*"                  # capte les fichiers sans extension
+        $fsw.Filter = "*"                  # capte tout les fichiers même sans extension
         $fsw.IncludeSubdirectories = $true
     } else {
         $fsw.Path   = Split-Path $p -Parent
@@ -257,10 +192,10 @@ for ($i=0; $i -lt $Paths.Count; $i++) {
 
     $fsw.EnableRaisingEvents = $true
     $watchers += $fsw
-    Write-Host "Watcher démarré sur $($fsw.Path) (Filter=$($fsw.Filter))"
+    Write-Host "Watcher demarre sur $($fsw.Path) (Filter=$($fsw.Filter))"
 }
 
-Write-Host "PoC HIDS en cours d'exécution. Ctrl+C pour arrêter."
+Write-Host "HIDS en cours d'execution. Ctrl+C pour arrêter."
 
 # ---------- TRAITEMENT D’UN EVT ----------
 function Handle-Event {
@@ -306,28 +241,28 @@ function Handle-Event {
 
     if (-not $exists -or $ename -eq "Deleted") {
         $subject = "[HIDS] Suppression: $full"
-        $body    = "Suppression détectée sur $(hostname)`nChemin: $full`nBaselineHash: $bhash"
-        Log-Event -Message ("Suppression détectée: " + $full) -EventFile $script:EventLogFile
+        $body    = "Suppression detectee sur $(hostname)`nChemin: $full`nBaselineHash: $bhash"
+        Log-Event -Message ("Suppression detectee: " + $full) -EventFile $script:EventLogFile
     }
     elseif ($bhash -eq $null -and $ename -in @('Created','Renamed','Changed')) {
-        $subject = "[HIDS] Création: $full"
-        $body    = "Création détectée sur $(hostname)`nChemin: $full`nCurrentHash: $currentHash`nType: $ename"
-        Log-Event -Message ("Création détectée (hors baseline): " + $full + " (current=" + $currentHash + ")") -EventFile $script:EventLogFile
+        $subject = "[HIDS] Creation: $full"
+        $body    = "Creation detectee sur $(hostname)`nChemin: $full`nCurrentHash: $currentHash`nType: $ename"
+        Log-Event -Message ("Creation detectee (hors baseline): " + $full + " (current=" + $currentHash + ")") -EventFile $script:EventLogFile
     }
     elseif ($bhash -ne $currentHash) {
         $subject = "[HIDS] Modification: $full"
-        $body    = "Modification détectée sur $(hostname)`nChemin: $full`nBaselineHash: $bhash`nCurrentHash: $currentHash`nType: $ename"
-        Log-Event -Message ("Modification détectée: " + $full + " (baseline=" + $bhash + " / current=" + $currentHash + ")") -EventFile $script:EventLogFile
+        $body    = "Modification detectee sur $(hostname)`nChemin: $full`nBaselineHash: $bhash`nCurrentHash: $currentHash`nType: $ename"
+        Log-Event -Message ("Modification detectee: " + $full + " (baseline=" + $bhash + " / current=" + $currentHash + ")") -EventFile $script:EventLogFile
     }
     else {
-        Log-Event -Message ("Evénement non critique (hash identique): " + $full + " (" + $ename + ")") -EventFile $script:EventLogFile
+        Log-Event -Message ("Evenement non critique (hash identique): " + $full + " (" + $ename + ")") -EventFile $script:EventLogFile
     }
 
     if ($subject) {
         $ok = Send-Email -SmtpServer $Smtp.Server -Port $Smtp.Port -UseTls $Smtp.UseTls `
               -From $Smtp.From -To $Smtp.To -Subject $subject -Body $body `
               -User $Smtp.Username -Password $Smtp.Password
-        if ($ok) { Log-Event -Message ("Mail envoyé: " + $full) -EventFile $script:EventLogFile }
+        if ($ok) { Log-Event -Message ("Mail envoye: " + $full) -EventFile $script:EventLogFile }
         else     { Log-Event -Message ("Echec envoi mail: " + $full) -EventFile $script:EventLogFile }
     }
 }
@@ -347,5 +282,5 @@ finally {
     foreach ($w in $watchers) { try { $w.EnableRaisingEvents = $false; $w.Dispose() } catch {} }
     Get-Event | Remove-Event -ErrorAction SilentlyContinue
     Get-EventSubscriber | Where-Object { $_.SourceIdentifier -like 'HIDS*' } | Unregister-Event -Force -ErrorAction SilentlyContinue
-    Write-Host "PoC arrêté proprement."
+    Write-Host "HIDS arrete proprement."
 }

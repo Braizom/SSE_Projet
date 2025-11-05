@@ -177,10 +177,13 @@ $Form.controls.AddRange(@($Groupbox1,$Groupbox2,$Groupbox3,$Button3))
 
 $Button1.Add_Click({ Get-File; AddFilePath })
 $Button2.Add_Click({ Get-Folder; AddFolderPath })
-$Button3.Add_Click({ MakeJSON })
+$Button3.Add_Click({ MakeJSON; LaunchHIDS })
 $Button4.Add_Click({ Get-Receiver; AddReceiver })
 
 Function Get-Receiver(){
+    if($TextBox3.Text -eq ""){
+        return
+    }
     $ReceiverList.add($TextBox3.Text)
     $TextBox3.Clear()
 }
@@ -210,6 +213,10 @@ Function MakeJSON(){
     $password = (ConvertTo-SecureString -AsPlainText -Force $TextBox2.Text | ConvertFrom-SecureString)
     New-Object Config $TextBox1.Text, $password, $FolderPathList, $FilePathList, $ReceiverList | ConvertTo-Json | Out-File -FilePath .\config.json
     $Form.close()
+}
+
+Function LaunchHIDS(){
+    Start-Process powershell.exe -ArgumentList "-file .\HIDS.ps1"
 }
 
 [void]$Form.ShowDialog()

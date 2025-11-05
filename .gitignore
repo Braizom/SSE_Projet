@@ -5,4 +5,5 @@
 *.ps1
 
 !HIDS-POC.ps1
-!SSE_Int_V2.ps1
+!HIDS.ps1
+!START.ps1

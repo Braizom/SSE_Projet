@@ -3,6 +3,7 @@
 *.html
 *.iml
 *.ps1
+*.exe
 
 !HIDS-POC.ps1
 !HIDS.ps1

@@ -44,8 +44,8 @@ class Config{
         $this.Paths = ($FolderPathList + $FilePathList)
         $this.Smtp = New-Object Smtp $user, $passwrd, $ReceiverList[0]
         $this.DebounceSeconds = 2
-        $this.BaselineFile = "C:\ProgramData\HIDS\baseline.json"
-        $this.EventLogFile = "C:\ProgramData\HIDS\events.log"
+        $this.BaselineFile = "C:\Program Files (x86)\HIDS\baseline.json"
+        $this.EventLogFile = "C:\Program Files (x86)\HIDS\events.log"
     }
 }
 
@@ -211,12 +211,13 @@ Function AddReceiver(){
 
 Function MakeJSON(){
     $password = (ConvertTo-SecureString -AsPlainText -Force $TextBox2.Text | ConvertFrom-SecureString)
-    New-Object Config $TextBox1.Text, $password, $FolderPathList, $FilePathList, $ReceiverList | ConvertTo-Json | Out-File -FilePath .\config.json
+    New-Object Config $TextBox1.Text, $password, $FolderPathList, $FilePathList, $ReceiverList | ConvertTo-Json | Out-File -FilePath "C:\Program Files (x86)\HIDS\config.json"
     $Form.close()
 }
 
 Function LaunchHIDS(){
-    Start-Process powershell.exe -ArgumentList "-file .\HIDS.ps1"
+    #Start-Process powershell.exe -ArgumentList "-file .\HIDS.ps1"
+    Start-Process "C:\Program Files (x86)\HIDS\HIDS.exe"
 }
 
 [void]$Form.ShowDialog()

@@ -10,7 +10,7 @@ class FileBaseline{
     }
 }
 
-$CONFIG = ConvertFrom-Json (Get-Content -Raw ".\config.json")
+$CONFIG = ConvertFrom-Json (Get-Content -Raw "C:\Program Files (x86)\HIDS\config.json")
 
 function Log-Event ($Message){
     $ts = (Get-Date).ToString("s")
@@ -41,7 +41,7 @@ Function addToBaseline($List){
 
 addToBaseline($CONFIG.Paths)
 
-    #ConvertTo-Json $Baseline | Out-File -FilePath .\baseline.json
+ConvertTo-Json $Baseline | Out-File -FilePath "C:\Program Files (x86)\HIDS\baseline.json"
 
 $watchers = @()
 $subs = @()

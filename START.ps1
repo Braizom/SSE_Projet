@@ -20,7 +20,7 @@ class Smtp{
     [int]$Port
     [bool]$UseTls
     [string]$From #Addresse utilisée pour envoyer les mails d'alerte
-    [string]$To #Liste des addresses réceptrices des mails d'alerte
+    [array]$To #Liste des addresses réceptrices des mails d'alerte
     [string]$Username #Nom d'utilisateur pour le mail d'envoi
     [string]$Password #Mot de passe (sous format SecureString) pour le mail d'envoi
 
@@ -47,7 +47,7 @@ class Config{
     Config($user, $passwrd, $FolderPathList, $FilePathList, $ReceiverList){
         $this.Receivers = $ReceiverList
         $this.Paths = ($FolderPathList + $FilePathList)
-        $this.Smtp = New-Object Smtp $user, $passwrd, $ReceiverList[0]
+        $this.Smtp = New-Object Smtp $user, $passwrd, $ReceiverList
         $this.DebounceSeconds = 2
         $this.BaselineFile = "C:\Program Files (x86)\HIDS\baseline.json"
         $this.EventLogFile = "C:\Program Files (x86)\HIDS\events.log"

@@ -1,24 +1,28 @@
+#Paramétrage des bibliothèques pour le form windows
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+#Collections de soutien pour faciliter l'ajout de récepteur, fichiers et dossiers
 $FolderPathList = [System.Collections.ArrayList]@()
 $FilePathList = [System.Collections.ArrayList]@()
 $ReceiverList = [System.Collections.ArrayList]@()
 
+#Fonction de soutien pour générer le serveur smtp à utiliser pour envoyer les mails d'alerte
 Function FindSmtp($email){
     $smtp = "smtp."
     $domain = $email.Split("@")[-1]
     return ($smtp + $domain)
 }
 
+#Classe de soutien pour stocker les informations relatives aux paramètres d'envoi de mails d'alerte
 class Smtp{
-    [string]$Server
+    [string]$Server #Serveur SMTP depuis lequel envoyer les mails d'alerte
     [int]$Port
     [bool]$UseTls
-    [string]$From
-    [string]$To
-    [string]$Username
-    [string]$Password
+    [string]$From #Addresse utilisée pour envoyer les mails d'alerte
+    [string]$To #Liste des addresses réceptrices des mails d'alerte
+    [string]$Username #Nom d'utilisateur pour le mail d'envoi
+    [string]$Password #Mot de passe (sous format SecureString) pour le mail d'envoi
 
     Smtp($user, $passwrd, $To){
         $this.Server = FindSmtp($user)
@@ -31,13 +35,14 @@ class Smtp{
     }
 }
 
+#Classe de soutien pour stocker les informations de configuration de l'HIDS
 class Config{
-    [array]$Receivers
-    [array]$Paths
-    [object]$Smtp
-    [int]$DebounceSeconds
-    [string]$BaselineFile
-    [string]$EventLogFile
+    [array]$Receivers #Liste des addresses mails à notifier
+    [array]$Paths #Liste des dossiers/fichiers à surveiller
+    [object]$Smtp #Paramètres d'envoi de mails
+    [int]$DebounceSeconds #Nombre de secondes à attendre avant de revérifier l'état d'un fichier
+    [string]$BaselineFile #Fichier où sont stockés les hashs des fichiers à surveiller
+    [string]$EventLogFile #Fichier où sont stockés les logs de l'HIDS
 
     Config($user, $passwrd, $FolderPathList, $FilePathList, $ReceiverList){
         $this.Receivers = $ReceiverList
@@ -49,20 +54,25 @@ class Config{
     }
 }
 
+#Lancement de l'interface graphique de choix d'un dossier à surveiller
 Function Get-Folder(){
     $FolderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog
     [void] $FolderBrowserDialog.ShowDialog()
     $FolderPath = $FolderBrowserDialog.SelectedPath
-    $FolderPathList.add($FolderPath)
+    $FolderPathList.add($FolderPath) #Ajout du dossier en question à la liste interne
 }
 
+#Lancement de l'interface graphique de choix d'un fichier à surveiller
 Function Get-File(){
     $OpenFileDialog = New-Object System.Windows.Forms.OpenFileDialog
     [void] $OpenFileDialog.ShowDialog()
     $FilePath = $OpenFileDialog.FileName
-    $FilePathList.add($FilePath)
+    $FilePathList.add($FilePath) #Ajout du fichier en question à la liste interne
 }
 
+#Touts les objets et leur attributs nécessaires pour l'interface graphique de l'HIDS
+#Ces objets ont été générés grâce à PoshGUI, une plateforme en ligne de design d'interface graphique
+#Il n'y a pas eu d'usage d'IA dans l'élaboration de cette interface
 $Form                            = New-Object system.Windows.Forms.Form
 $Form.ClientSize                 = New-Object System.Drawing.Point(400,492)
 $Form.text                       = "SurveyorSetup"
@@ -175,11 +185,13 @@ $Groupbox2.controls.AddRange(@($Button2,$ListView1))
 $Groupbox1.controls.AddRange(@($Label1,$TextBox1,$Label2,$TextBox2,$ListView3,$TextBox3,$Button4))
 $Form.controls.AddRange(@($Groupbox1,$Groupbox2,$Groupbox3,$Button3))
 
+#Lien entre les boutons de l'interface graphique et les fonctions du script
 $Button1.Add_Click({ Get-File; AddFilePath })
 $Button2.Add_Click({ Get-Folder; AddFolderPath })
 $Button3.Add_Click({ MakeJSON; LaunchHIDS })
 $Button4.Add_Click({ Get-Receiver; AddReceiver })
 
+#Fonction de soutien pour ajouter un nouveau mail recepteur à la liste depuis l'interface graphique
 Function Get-Receiver(){
     if($TextBox3.Text -eq ""){
         return
@@ -188,6 +200,7 @@ Function Get-Receiver(){
     $TextBox3.Clear()
 }
 
+#Fonction de soutien pour intégrer et mettre à jour l'affichage de la liste des fichiers sélectionnés
 Function AddFilePath(){
     $ListView2.Items.Clear()
     foreach($path in $FilePathList){
@@ -195,6 +208,7 @@ Function AddFilePath(){
     }
 }
 
+#Fonction de soutien pour intégrer et mettre à jour l'affichage de la liste des dossiers sélectionnés
 Function AddFolderPath(){
     $ListView1.Items.Clear()
     foreach($path in $FolderPathList){
@@ -202,6 +216,7 @@ Function AddFolderPath(){
     }
 }
 
+#Fonction de soutien pour intégrer et mettre à jour l'affichage de la liste des mails récepteurs sélectionnés
 Function AddReceiver(){
     $ListView3.Items.Clear()
     foreach($receiver in $ReceiverList){
@@ -209,15 +224,18 @@ Function AddReceiver(){
     }
 }
 
+#Fonction de soutien pour créer le fichier de configuration
 Function MakeJSON(){
     $password = (ConvertTo-SecureString -AsPlainText -Force $TextBox2.Text | ConvertFrom-SecureString)
     New-Object Config $TextBox1.Text, $password, $FolderPathList, $FilePathList, $ReceiverList | ConvertTo-Json | Out-File -FilePath "C:\Program Files (x86)\HIDS\config.json"
     $Form.close()
 }
 
+#Fonction de soutien pour lancer le script de lancement de l'HIDS
 Function LaunchHIDS(){
     #Start-Process powershell.exe -ArgumentList "-file .\HIDS.ps1"
     Start-Process "C:\Program Files (x86)\HIDS\HIDS.exe"
 }
 
+#Montrer l'interface graphique de configuration de l'HIDS
 [void]$Form.ShowDialog()

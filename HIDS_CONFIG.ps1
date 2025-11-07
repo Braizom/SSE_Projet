@@ -233,12 +233,12 @@ Function MakeJSON(){
 
 #Fonction de soutien pour lancer le script de lancement de l'HIDS
 Function LaunchHIDS(){
-    $prgrm = Get-Item -LiteralPath "C:\Program Files (x86)\HIDS\HIDS.exe" -ErrorAction SilentlyContinue
+    $prgrm = Get-Item -LiteralPath "C:\Program Files (x86)\HIDS\HIDS_LAUNCH.exe" -ErrorAction SilentlyContinue
     if($prgrm){
-        Start-Process "C:\Program Files (x86)\HIDS\HIDS.exe"
+        Start-Process "C:\Program Files (x86)\HIDS\HIDS_LAUNCH.exe"
     }
     else{
-        Start-Process powershell.exe -ArgumentList "-file 'C:\Program Files (x86)\HIDS\HIDS.ps1'"
+        Start-Process powershell.exe -ArgumentList "-file 'C:\Program Files (x86)\HIDS\HIDS_LAUNCH.ps1'"
     }
 }
 

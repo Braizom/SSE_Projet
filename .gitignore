@@ -6,5 +6,5 @@
 *.exe
 
 !HIDS-POC.ps1
-!HIDS.ps1
-!START.ps1
+!HIDS_LAUNCH.ps1
+!HIDS_CONFIG.ps1

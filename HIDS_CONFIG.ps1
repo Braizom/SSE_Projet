@@ -204,7 +204,7 @@ Function Get-Receiver(){
 Function AddFilePath(){
     $ListView2.Items.Clear()
     foreach($path in $FilePathList){
-        $ListView2.Items.Add($path)
+        [void]$ListView2.Items.Add($path)
     }
 }
 
@@ -212,7 +212,7 @@ Function AddFilePath(){
 Function AddFolderPath(){
     $ListView1.Items.Clear()
     foreach($path in $FolderPathList){
-        $ListView1.Items.Add($path)
+        [void]$ListView1.Items.Add($path)
     }
 }
 
@@ -220,7 +220,7 @@ Function AddFolderPath(){
 Function AddReceiver(){
     $ListView3.Items.Clear()
     foreach($receiver in $ReceiverList){
-        $ListView3.Items.Add($receiver)
+        [void]$ListView3.Items.Add($receiver)
     }
 }
 
@@ -233,13 +233,59 @@ Function MakeJSON(){
 
 #Fonction de soutien pour lancer le script de lancement de l'HIDS
 Function LaunchHIDS(){
+    $temp = Get-Item -LiteralPath "C:\Program Files (x86)\HIDS\HIDSID" -ErrorAction SilentlyContinue
+    if($temp){ #Si un pid d'HIDS existe déjà
+        Stop-Process -Id (Get-Content "C:\Program Files (x86)\HIDS\HIDSID") #Arrêter le HIDS précédent
+        Remove-Item "C:\Program Files (x86)\HIDS\HIDSID" #Supprimer le fichier du pid
+    }
+
     $prgrm = Get-Item -LiteralPath "C:\Program Files (x86)\HIDS\HIDS_LAUNCH.exe" -ErrorAction SilentlyContinue
-    if($prgrm){
-        Start-Process "C:\Program Files (x86)\HIDS\HIDS_LAUNCH.exe"
+    if($prgrm){ #Si le .exe existe, le lancer
+        $hids = Start-Process "C:\Program Files (x86)\HIDS\HIDS_LAUNCH.exe" -PassThru
+        $hids.Id | Out-File -FilePath "C:\Program Files (x86)\HIDS\HIDSID" #Sauvegarde du pid de l'HIDS
+    }
+    else{ #Sinon, lancer l'équivalent .ps1
+        $hids = Start-Process powershell.exe -ArgumentList '-file "C:\Program Files (x86)\HIDS\HIDS_LAUNCH.ps1"' -PassThru
+        $hids.Id | Out-File -FilePath "C:\Program Files (x86)\HIDS\HIDSID" #Sauvegarde du pid de l'HIDS
+    }
+}
+
+#Fonction de soutien pour séparer correctement la liste des paths entre fichiers et dossiers
+Function GetFileIndex($List){
+    for($i = 0; $i -lt $List.Length; $i++){
+        $temp = Get-Item -LiteralPath $List[$i] -ErrorAction SilentlyContinue
+        if(-not $temp.PSIsContainer){
+            return $i
+        }
+    }
+    return $null
+}
+
+#Bloc de code pour l'import d'une configuration prééxistante
+$temp = Get-Item -LiteralPath "C:\Program Files (x86)\HIDS\config.json" -ErrorAction SilentlyContinue
+if($temp){ #Si le fichier de configuration existe déjà
+    $INIT_CONFIG = ConvertFrom-Json (Get-Content -Raw "C:\Program Files (x86)\HIDS\config.json")
+    $INIT_Smtp = $INIT_CONFIG.Smtp
+    $ReceiverList = $INIT_CONFIG.Receivers
+    $TextBox1.Text = $INIT_Smtp.From
+
+    #Répartition des paths des fichiers à surveiller aux emplacements corrects de l'interface
+    $FileIndex = GetFileIndex($INIT_CONFIG.Paths)
+    if($FileIndex -eq $null){
+        $FolderPathList = [System.Collections.ArrayList]$INIT_CONFIG.Paths
+    }
+    elseif($FileIndex -eq 0){
+        $FilePathList = [System.Collections.ArrayList]$INIT_CONFIG.Paths
     }
     else{
-        Start-Process powershell.exe -ArgumentList "-file 'C:\Program Files (x86)\HIDS\HIDS_LAUNCH.ps1'"
+        $FolderPathList = [System.Collections.ArrayList]$INIT_CONFIG.Paths[0..($FileIndex - 1)]
+        $FilePathList = [System.Collections.ArrayList]$INIT_CONFIG.Paths[$FileIndex..($INIT_CONFIG.Paths.Length - 1)]
     }
+
+    #Actualisation de l'interface
+    AddReceiver
+    AddFolderPath
+    AddFilePath
 }
 
 #Montrer l'interface graphique de configuration de l'HIDS
